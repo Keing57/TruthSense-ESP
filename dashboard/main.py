@@ -61,24 +61,41 @@ class MainWindow(QMainWindow):
         self.plot_widget = pg.PlotWidget()
         self.plot_widget.setBackground("#121212")
         self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
+        self.plot_widget.addLegend()
 
         main_layout.addWidget(self.sidebar_widget)
         main_layout.addWidget(self.plot_widget, stretch=1)
 
         self.max_points = 200
-        self.data_y = [0] * self.max_points
-        self.curve = self.plot_widget.plot(self.data_y, pen=pg.mkPen(color="#00ffcc", width=2))
+        self.data_filtered = [0] * self.max_points
+        self.data_baseline = [0] * self.max_points
+        self.current_baseline = 0
+
+        pen_filtered = pg.mkPen(color=(0, 255, 100), width=3)
+        pen_baseline = pg.mkPen(color=(255, 215, 0), width=2, style=Qt.DashLine)
+
+        self.curve_filtered = self.plot_widget.plot(self.data_filtered, pen=pen_filtered, name="Filtered")
+        self.curve_baseline = self.plot_widget.plot(self.data_baseline, pen=pen_baseline, name="Baseline")
 
         self.serial_thread = SerialThread()
         self.serial_thread.data_received.connect(self.handle_data)
         self.serial_thread.start()
 
     def handle_data(self, data):
-        val = data.get("filtered", data.get("raw", 0))
-        self.data_y.append(val)
-        if len(self.data_y) > self.max_points:
-            self.data_y.pop(0)
-        self.curve.setData(self.data_y)
+        filtered_val = data.get("filtered", data.get("raw", 0))
+        baseline_val = data.get("baseline", self.current_baseline)
+        self.current_baseline = baseline_val
+
+        self.data_filtered.append(filtered_val)
+        if len(self.data_filtered) > self.max_points:
+            self.data_filtered.pop(0)
+
+        self.data_baseline.append(baseline_val)
+        if len(self.data_baseline) > self.max_points:
+            self.data_baseline.pop(0)
+
+        self.curve_filtered.setData(self.data_filtered)
+        self.curve_baseline.setData(self.data_baseline)
 
     def closeEvent(self, event):
         if self.serial_thread and self.serial_thread.isRunning():
