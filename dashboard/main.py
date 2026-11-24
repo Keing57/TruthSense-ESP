@@ -65,10 +65,20 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.sidebar_widget)
         main_layout.addWidget(self.plot_widget, stretch=1)
 
-        self.serial_thread = None
+        self.max_points = 200
+        self.data_y = [0] * self.max_points
+        self.curve = self.plot_widget.plot(self.data_y, pen=pg.mkPen(color="#00ffcc", width=2))
+
+        self.serial_thread = SerialThread()
+        self.serial_thread.data_received.connect(self.handle_data)
+        self.serial_thread.start()
 
     def handle_data(self, data):
-        pass
+        val = data.get("filtered", data.get("raw", 0))
+        self.data_y.append(val)
+        if len(self.data_y) > self.max_points:
+            self.data_y.pop(0)
+        self.curve.setData(self.data_y)
 
     def closeEvent(self, event):
         if self.serial_thread and self.serial_thread.isRunning():
