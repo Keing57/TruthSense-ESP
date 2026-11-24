@@ -1,8 +1,46 @@
 import sys
+import json
+import serial
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QPalette, QColor
 import pyqtgraph as pg
+
+class SerialThread(QThread):
+    data_received = pyqtSignal(dict)
+
+    def __init__(self, port="COM3", baudrate=115200):
+        super().__init__()
+        self.port = port
+        self.baudrate = baudrate
+        self.running = False
+        self.serial_conn = None
+
+    def run(self):
+        self.running = True
+        try:
+            self.serial_conn = serial.Serial(self.port, self.baudrate, timeout=1)
+            while self.running:
+                if self.serial_conn and self.serial_conn.is_open:
+                    line = self.serial_conn.readline().decode("utf-8", errors="ignore").strip()
+                    if line:
+                        try:
+                            data = json.loads(line)
+                            if isinstance(data, dict):
+                                self.data_received.emit(data)
+                        except json.JSONDecodeError:
+                            pass
+        except Exception:
+            pass
+        finally:
+            if self.serial_conn and self.serial_conn.is_open:
+                self.serial_conn.close()
+
+    def stop(self):
+        self.running = False
+        if self.serial_conn and self.serial_conn.is_open:
+            self.serial_conn.close()
+        self.wait()
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -26,6 +64,16 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(self.sidebar_widget)
         main_layout.addWidget(self.plot_widget, stretch=1)
+
+        self.serial_thread = None
+
+    def handle_data(self, data):
+        pass
+
+    def closeEvent(self, event):
+        if self.serial_thread and self.serial_thread.isRunning():
+            self.serial_thread.stop()
+        event.accept()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
