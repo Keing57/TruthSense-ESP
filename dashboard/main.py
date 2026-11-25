@@ -1,7 +1,8 @@
 import sys
 import json
 import serial
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout
+import serial.tools.list_ports
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QComboBox, QPushButton, QLabel
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QPalette, QColor
 import pyqtgraph as pg
@@ -47,7 +48,13 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("TruthSense Polygraph")
         self.resize(1000, 600)
-        self.setStyleSheet("background-color: #1e1e1e; color: #ffffff;")
+        self.setStyleSheet("""
+            QMainWindow { background-color: #1e1e1e; color: #ffffff; }
+            QLabel { color: #ffffff; font-size: 12px; }
+            QComboBox { background-color: #2b2b2b; color: #ffffff; padding: 6px; border: 1px solid #444; border-radius: 4px; }
+            QPushButton { background-color: #007acc; color: #ffffff; padding: 8px; border: none; border-radius: 4px; font-weight: bold; }
+            QPushButton:hover { background-color: #0098ff; }
+        """)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -57,6 +64,17 @@ class MainWindow(QMainWindow):
         self.sidebar_layout = QVBoxLayout(self.sidebar_widget)
         self.sidebar_layout.setAlignment(Qt.AlignTop)
         self.sidebar_widget.setFixedWidth(220)
+
+        self.port_label = QLabel("COM Port:")
+        self.port_combo = QComboBox()
+        self.refresh_ports()
+
+        self.connect_btn = QPushButton("Connect")
+        self.connect_btn.clicked.connect(self.connect_serial)
+
+        self.sidebar_layout.addWidget(self.port_label)
+        self.sidebar_layout.addWidget(self.port_combo)
+        self.sidebar_layout.addWidget(self.connect_btn)
 
         self.plot_widget = pg.PlotWidget()
         self.plot_widget.setBackground("#121212")
@@ -77,9 +95,30 @@ class MainWindow(QMainWindow):
         self.curve_filtered = self.plot_widget.plot(self.data_filtered, pen=pen_filtered, name="Filtered")
         self.curve_baseline = self.plot_widget.plot(self.data_baseline, pen=pen_baseline, name="Baseline")
 
-        self.serial_thread = SerialThread()
-        self.serial_thread.data_received.connect(self.handle_data)
-        self.serial_thread.start()
+        self.serial_thread = None
+
+    def refresh_ports(self):
+        self.port_combo.clear()
+        ports = serial.tools.list_ports.comports()
+        for p in ports:
+            self.port_combo.addItem(p.device)
+        if self.port_combo.count() == 0:
+            self.port_combo.addItem("COM3")
+
+    def connect_serial(self):
+        if self.serial_thread and self.serial_thread.isRunning():
+            self.serial_thread.stop()
+            self.connect_btn.setText("Connect")
+            self.port_combo.setEnabled(True)
+        else:
+            port = self.port_combo.currentText()
+            if not port:
+                port = "COM3"
+            self.serial_thread = SerialThread(port=port)
+            self.serial_thread.data_received.connect(self.handle_data)
+            self.serial_thread.start()
+            self.connect_btn.setText("Disconnect")
+            self.port_combo.setEnabled(False)
 
     def handle_data(self, data):
         filtered_val = data.get("filtered", data.get("raw", 0))
