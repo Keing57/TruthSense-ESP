@@ -2,7 +2,7 @@ import sys
 import json
 import serial
 import serial.tools.list_ports
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QComboBox, QPushButton, QLabel
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QComboBox, QPushButton, QLabel, QSlider
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QPalette, QColor
 import pyqtgraph as pg
@@ -54,6 +54,9 @@ class MainWindow(QMainWindow):
             QComboBox { background-color: #2b2b2b; color: #ffffff; padding: 6px; border: 1px solid #444; border-radius: 4px; }
             QPushButton { background-color: #007acc; color: #ffffff; padding: 8px; border: none; border-radius: 4px; font-weight: bold; }
             QPushButton:hover { background-color: #0098ff; }
+            QSlider::groove:horizontal { height: 6px; background: #333333; border-radius: 3px; }
+            QSlider::sub-page:horizontal { background: #007acc; border-radius: 3px; }
+            QSlider::handle:horizontal { background: #ffffff; width: 14px; margin-top: -4px; margin-bottom: -4px; border-radius: 7px; }
         """)
 
         central_widget = QWidget()
@@ -72,9 +75,18 @@ class MainWindow(QMainWindow):
         self.connect_btn = QPushButton("Connect")
         self.connect_btn.clicked.connect(self.connect_serial)
 
+        self.sensitivity_label = QLabel("Sensitivity: 20%")
+        self.sensitivity_slider = QSlider(Qt.Horizontal)
+        self.sensitivity_slider.setRange(5, 50)
+        self.sensitivity_slider.setValue(20)
+        self.sensitivity_slider.valueChanged.connect(self.update_sensitivity_label)
+
         self.sidebar_layout.addWidget(self.port_label)
         self.sidebar_layout.addWidget(self.port_combo)
         self.sidebar_layout.addWidget(self.connect_btn)
+        self.sidebar_layout.addSpacing(15)
+        self.sidebar_layout.addWidget(self.sensitivity_label)
+        self.sidebar_layout.addWidget(self.sensitivity_slider)
 
         self.plot_widget = pg.PlotWidget()
         self.plot_widget.setBackground("#121212")
@@ -96,6 +108,9 @@ class MainWindow(QMainWindow):
         self.curve_baseline = self.plot_widget.plot(self.data_baseline, pen=pen_baseline, name="Baseline")
 
         self.serial_thread = None
+
+    def update_sensitivity_label(self, value):
+        self.sensitivity_label.setText(f"Sensitivity: {value}%")
 
     def refresh_ports(self):
         self.port_combo.clear()
